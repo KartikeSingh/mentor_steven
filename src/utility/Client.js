@@ -12,6 +12,7 @@ module.exports = class Client extends Discord.Client {
     
     commands = new Discord.Collection();
     timeouts = new Discord.Collection();
+    images = new Discord.Collection();
 
     constructor(options) {
         super(options);

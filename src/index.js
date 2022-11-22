@@ -17,6 +17,7 @@ const mongoose = require('mongoose');
 const setting = require('./models/setting');
 const { getEmojiIdentifier, getEmojiString } = require('discord-emoji-utility');
 const announcement = require('./models/announcement');
+const { randomID } = require('create-random-id');
 
 mongoose.connect(process.env.MONGO_URI).then(() => console.log("Database Connected")).catch(() => console.log("Database Connection Failed"))
 
@@ -34,6 +35,9 @@ client.on('messageCreate', async (message) => {
 
     if (!image || !["png", "jpg", "jpeg"].some(v => image.endsWith(v))) return;
 
+    const code = randomID(12);
+    client.images.set(code, image)
+
     message.reply({
         embeds: [new EmbedBuilder({
             title: "❓What do you want to do",
@@ -41,12 +45,12 @@ client.on('messageCreate', async (message) => {
         components: [new ActionRowBuilder({
             components: [
                 new ButtonBuilder({
-                    customId: `simple---${image}`,
+                    customId: `simple---${code}`,
                     label: "Announcement",
                     style: ButtonStyle.Secondary,
                 }),
                 new ButtonBuilder({
-                    customId: `complex---${image}`,
+                    customId: `complex---${code}`,
                     label: "Hidden Announcement",
                     style: ButtonStyle.Primary,
                 })
@@ -209,7 +213,7 @@ client.on('interactionCreate', async (interaction) => {
             embeds: [{
                 description: text,
                 image: {
-                    url: image
+                    url: client.images.get(image)
                 }
             }]
         }).then(async msg => {

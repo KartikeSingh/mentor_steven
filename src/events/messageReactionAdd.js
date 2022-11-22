@@ -10,9 +10,9 @@ module.exports = async (client, reaction) => {
     if (msg.reactions.cache.filter(v => [v.emoji.id, v.emoji.name].includes(data.emoji)).toJSON()[0]?.count >= data.count) {
         msg.edit({
             embeds: [{
-                description: data.text.replace(/\-\-/g,"\n"),
-                image:{
-                    url:data.image
+                description: data.text.replace(/\-\-/g, "\n"),
+                image: {
+                    url: client.images.get(data.image)
                 }
             }]
         })
