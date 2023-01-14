@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 // Imports
-const { GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, ChannelType, SelectMenuBuilder } = require('discord.js');
 const Client = require('./utility/Client');
 
 // HTTP server setup
@@ -71,16 +71,6 @@ client.on('interactionCreate', async (interaction) => {
             new ActionRowBuilder({
                 components: [
                     new TextInputBuilder({
-                        label: "Channel ID",
-                        style: TextInputStyle.Short,
-                        required: true,
-                        customId: "channel"
-                    })
-                ]
-            }),
-            new ActionRowBuilder({
-                components: [
-                    new TextInputBuilder({
                         label: "Text",
                         style: TextInputStyle.Paragraph,
                         required: true,
@@ -122,7 +112,7 @@ client.on('interactionCreate', async (interaction) => {
                         label: "Placeholder",
                         style: TextInputStyle.Paragraph,
                         customId: "placeholder",
-                        required:false
+                        required: false
                     })
                 ]
             })
@@ -132,107 +122,236 @@ client.on('interactionCreate', async (interaction) => {
     } else if (id === "builderTwo") {
         const
             text = interaction.fields.getTextInputValue("text"),
-            channel = client.channels.cache.get(interaction.fields.getTextInputValue("channel").match(/\d+/) + ""),
             emoji = getEmojiIdentifier(client, interaction.fields.getTextInputValue("emoji")),
             placeholder = interaction.fields.getTextInputValue("placeholder") || `You can read this message after this message gets **{count}** {emoji} reactions on this message`,
-            count = parseInt(interaction.fields.getTextInputValue("count"));
+            count = parseInt(interaction.fields.getTextInputValue("count")),
+            channels = interaction.guild.channels.cache.filter(v => v.type === ChannelType.GuildText).toJSON();
 
-        await interaction.deferReply({ ephemeral: true });
+        const rows = [], columns = 25;
 
-        if (!channel) return interaction.editReply({
-            embeds: [
-                new EmbedBuilder()
-                    .setColor("Red")
-                    .setTitle("❌ Invalid Channel")
-            ]
-        })
+        for (let i = 0; i < channels.length; i++) {
+            const ind = Math.floor(i / columns),
+                option = {
+                    label: channels[i].name,
+                    value: channels[i].id,
+                };
 
-        if (!emoji) return interaction.editReply({
-            embeds: [
-                new EmbedBuilder()
-                    .setColor("Red")
-                    .setTitle("❌ Invalid Emoji")
-            ]
-        })
-
-        if (!count || count < 1) return interaction.editReply({
-            embeds: [
-                new EmbedBuilder()
-                    .setColor("Red")
-                    .setTitle("❌ Invalid Count")
-            ]
-        })
-        channel.send({
-            embeds: [{
-                description: `||${placeholder.replace(/\{count\}/gi, count).replace(/\{emoji\}/gi, getEmojiString(client, emoji))}||`
-            }]
-        }).then(async msg => {
-            await announcement.create({
-                count,
-                emoji,
-                id: msg.id,
-                placeholder,
-                text,
-                channel: interaction.channel.id,
-                image
+            rows[ind] ? rows[ind].components[0].addOptions(option) : rows[ind] = new ActionRowBuilder({
+                components: [new SelectMenuBuilder({
+                    customId: `c_${ind}`,
+                    options: [option]
+                })]
             });
+        }
 
-            interaction.editReply({
-                embeds: [
-                    new EmbedBuilder()
-                        .setColor("Green")
-                        .setTitle("✅ Announcement Created")
-                        .setDescription(`[Jump](${msg.url}) to the announcement.`)
-                ]
-            });
-        }).catch(() => {
-            interaction.editReply({
+        const msg = await interaction.reply({
+            fetchReply: true,
+            embeds: [
+                new EmbedBuilder()
+                    .setColor("Yellow")
+                    .setTitle("❓ Select The Channel")
+            ],
+            components: rows,
+            ephemeral: true,
+        });
+
+        const col = msg.createMessageComponentCollector({
+            time: 3600000,
+            filter: i => i.user.id === interaction.user.id
+        });
+
+        col.on('collect', (x) => {
+            x.deferUpdate();
+            col.stop(x.values[0]);
+        });
+
+        col.on('end', async (x, r) => {
+            if (r === "time") return interaction.editReply({
                 embeds: [
                     new EmbedBuilder()
                         .setColor("Red")
-                        .setTitle("❌ Announcement Creation Failed")
-                ]
+                        .setTitle("❌ You Took Too Long To Respond")
+                ],
+                components: [],
             });
+
+            const channel = interaction.guild.channels.cache.get(r);
+
+            if (!channel) return interaction.editReply({
+                components: [],
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor("Red")
+                        .setTitle("❌ Invalid Channel")
+                ]
+            })
+
+            if (!emoji) return interaction.editReply({
+                components: [],
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor("Red")
+                        .setTitle("❌ Invalid Emoji")
+                ]
+            })
+
+            if (!count || count < 1) return interaction.editReply({
+                components: [],
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor("Red")
+                        .setTitle("❌ Invalid Count")
+                ]
+            })
+            channel.send({
+                embeds: [{
+                    description: `${placeholder.replace(/\{count\}/gi, count).replace(/\{emoji\}/gi, getEmojiString(client, emoji))}`
+                }]
+            }).then(async msg => {
+                await announcement.create({
+                    count,
+                    emoji,
+                    id: msg.id,
+                    placeholder,
+                    text,
+                    channel: interaction.channel.id,
+                    image
+                });
+
+                interaction.editReply({
+                components: [],
+                embeds: [
+                        new EmbedBuilder()
+                            .setColor("Green")
+                            .setTitle("✅ Announcement Created")
+                            .setDescription(`[Jump](${msg.url}) to the announcement.`)
+                    ]
+                });
+            }).catch(() => {
+                interaction.editReply({
+                components: [],
+                embeds: [
+                        new EmbedBuilder()
+                            .setColor("Red")
+                            .setTitle("❌ Announcement Creation Failed")
+                    ]
+                });
+            })
         })
     } else if (id === "builderOne") {
-        const
-            text = interaction.fields.getTextInputValue("text"),
-            channel = client.channels.cache.get(interaction.fields.getTextInputValue("channel").match(/\d+/) + "");
+        const text = interaction.fields.getTextInputValue("text"),
+            channels = interaction.guild.channels.cache.filter(v => v.type === ChannelType.GuildText).toJSON();
 
-        await interaction.deferReply({ ephemeral: true });
+        const rows = [], columns = 25;
 
-        if (!channel) return interaction.editReply({
+        for (let i = 0; i < channels.length; i++) {
+            const ind = Math.floor(i / columns),
+                option = {
+                    label: channels[i].name,
+                    value: channels[i].id,
+                };
+
+            rows[ind] ? rows[ind].components[0].addOptions(option) : rows[ind] = new ActionRowBuilder({
+                components: [new SelectMenuBuilder({
+                    customId: `c_${ind}`,
+                    options: [option]
+                })]
+            });
+        }
+
+        const msg = await interaction.reply({
+            fetchReply: true,
             embeds: [
                 new EmbedBuilder()
-                    .setColor("Red")
-                    .setTitle("❌ Invalid Channel")
-            ]
-        })
+                    .setColor("Yellow")
+                    .setTitle("❓ Select The Channel")
+            ],
+            components: rows,
+            ephemeral: true,
+        });
 
-        channel.send({
-            embeds: [{
-                description: text,
-                image: {
-                    url: client.images.get(image)
-                }
-            }]
-        }).then(async msg => {
-            interaction.editReply({
-                embeds: [
-                    new EmbedBuilder()
-                        .setColor("Green")
-                        .setTitle("✅ Announcement Created")
-                        .setDescription(`[Jump](${msg.url}) to the announcement.`)
-                ]
-            });
-        }).catch(() => {
-            interaction.editReply({
+        const col = msg.createMessageComponentCollector({
+            time: 3600000,
+            filter: i => i.user.id === interaction.user.id
+        });
+
+        col.on('collect', (x) => {
+            x.deferUpdate();
+            col.stop(x.values[0]);
+        });
+
+        col.on('end', async (x, r) => {
+            if (r === "time") return interaction.editReply({
                 embeds: [
                     new EmbedBuilder()
                         .setColor("Red")
-                        .setTitle("❌ Announcement Creation Failed")
-                ]
+                        .setTitle("❌ You Took Too Long To Respond")
+                ],
+                components: [],
             });
+
+            const channel = interaction.guild.channels.cache.get(r);
+
+            if (!channel) return interaction.editReply({
+                components: [],
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor("Red")
+                        .setTitle("❌ Invalid Channel")
+                ]
+            })
+
+            if (!emoji) return interaction.editReply({
+                components: [],
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor("Red")
+                        .setTitle("❌ Invalid Emoji")
+                ]
+            })
+
+            if (!count || count < 1) return interaction.editReply({
+                components: [],
+                embeds: [
+                    new EmbedBuilder()
+                        .setColor("Red")
+                        .setTitle("❌ Invalid Count")
+                ]
+            })
+            channel.send({
+                embeds: [{
+                    description: `${placeholder.replace(/\{count\}/gi, count).replace(/\{emoji\}/gi, getEmojiString(client, emoji))}`
+                }]
+            }).then(async msg => {
+                await announcement.create({
+                    count,
+                    emoji,
+                    id: msg.id,
+                    placeholder,
+                    text,
+                    channel: interaction.channel.id,
+                    image
+                });
+
+                interaction.editReply({
+                components: [],
+                embeds: [
+                        new EmbedBuilder()
+                            .setColor("Green")
+                            .setTitle("✅ Announcement Created")
+                            .setDescription(`[Jump](${msg.url}) to the announcement.`)
+                    ]
+                });
+            }).catch(() => {
+                interaction.editReply({
+                components: [],
+                embeds: [
+                        new EmbedBuilder()
+                            .setColor("Red")
+                            .setTitle("❌ Announcement Creation Failed")
+                    ]
+                });
+            })
         })
     }
 })

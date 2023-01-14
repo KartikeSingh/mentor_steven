@@ -48,7 +48,7 @@ module.exports = {
 
         interaction.channel.send({
             embeds: [{
-                description: `||${placeholder.replace(/\{count\}/gi, count).replace(/\{emoji\}/gi, getEmojiString(client, emoji))}||`
+                description: `${placeholder.replace(/\{count\}/gi, count).replace(/\{emoji\}/gi, getEmojiString(client, emoji))}`
             }]
         }).then(async msg => {
             await announcement.create({

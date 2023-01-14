@@ -69,7 +69,7 @@ module.exports = {
 
         msg.edit({
             embeds: [{
-                description: `||${placeholder.replace(/\{count\}/gi, count).replace(/\{emoji\}/gi, getEmojiString(client, emoji))}||`
+                description: `${placeholder.replace(/\{count\}/gi, count).replace(/\{emoji\}/gi, getEmojiString(client, emoji))}`
             }]
         }).then(() => {
             interaction.editReply({
